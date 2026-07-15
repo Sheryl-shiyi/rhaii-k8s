@@ -76,7 +76,7 @@ If you don't have a Kubernetes cluster yet, see the full step-by-step guide:
 
 ## Model Source Modes
 
-### OCI (default)
+### Alt 1: OCI (default)
 
 Pulls the model as an OCI artifact from a container registry using an ORAS init container. This is the recommended mode for production and air-gapped environments.
 
@@ -91,6 +91,17 @@ For air-gapped clusters with a local registry, mirror the images from a machine 
 
 ```bash
 # On a machine with internet access (e.g., jumphost)
+
+# Method 1 (Recommended): Using podman
+podman pull registry.redhat.io/rhaii/vllm-cuda-rhel9:3.4.0
+podman push registry.redhat.io/rhaii/vllm-cuda-rhel9:3.4.0 \
+  local-registry.example.com/rhaii/vllm-cuda-rhel9:3.4.0
+
+podman pull registry.redhat.io/rhelai1/mistral-small-3-1-24b-instruct-2503-quantized-w4a16:1.5
+podman push registry.redhat.io/rhelai1/mistral-small-3-1-24b-instruct-2503-quantized-w4a16:1.5 \
+  local-registry.example.com/rhelai1/mistral-small-3-1-24b-instruct-2503-quantized-w4a16:1.5
+
+# Method 2: Using skopeo (direct registry-to-registry copy, no local storage needed)
 skopeo copy \
   docker://registry.redhat.io/rhaii/vllm-cuda-rhel9:3.4.0 \
   docker://local-registry.example.com/rhaii/vllm-cuda-rhel9:3.4.0
@@ -109,7 +120,7 @@ model:
   ociImage: local-registry.example.com/rhelai1/mistral-small-3-1-24b-instruct-2503-quantized-w4a16:1.5
 ```
 
-### HuggingFace
+### Alt 2: HuggingFace
 
 Downloads the model directly from HuggingFace Hub at pod startup. Requires internet access from the cluster and a HuggingFace token.
 
@@ -121,7 +132,7 @@ helm install rhaii . -n rhai \
   --set registrySecret.existingSecret=YOUR_PULL_SECRET
 ```
 
-### Preloaded
+### Alt 3: Preloaded
 
 Assumes model files are already present on the PVC. Use this when you have pre-populated the storage through other means (e.g., `kubectl cp`, NFS mount, or a separate download job).
 
@@ -168,6 +179,8 @@ helm install rhaii . -n rhai \
 | GPU Instance | `g6.xlarge` (1x NVIDIA L4, 24GB VRAM) |
 | System Nodes | 2x `m5.xlarge` (4 vCPU, 16GB RAM) |
 | Region | us-east-2 (Ohio) |
+| GPU Node Label | `dedicated=rhai` |
+| GPU Node Taint | `dedicated=rhai:NoSchedule` |
 
 ### Software
 
