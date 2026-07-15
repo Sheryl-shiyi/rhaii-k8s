@@ -29,11 +29,17 @@ cd rhaii-k8s
 
 #### Alt 1: OCI (default, recommended for production/air-gap)
 
-The model is pulled as an OCI artifact from a container registry at pod startup. Two images are needed: the **vLLM runtime** and the **model**.
+The model is pulled as an OCI artifact from a container registry at pod startup. Three images are needed:
 
-If your cluster can reach `registry.redhat.io` directly, no preparation is needed. Skip to Step 3.
+| Image | Purpose |
+|---|---|
+| `registry.redhat.io/rhaii/vllm-cuda-rhel9:3.4.0` | vLLM runtime (main container) |
+| `registry.redhat.io/rhelai1/mistral-small-3-1-24b-instruct-2503-quantized-w4a16:1.5` | Model weights (OCI artifact) |
+| `ghcr.io/oras-project/oras:v1.2.0` | ORAS tool (init container, used to pull the model OCI artifact) |
 
-For air-gapped clusters, mirror both images to your local registry from a machine with internet access (e.g., jumphost):
+If your cluster can reach these registries directly, no preparation is needed. Skip to Step 3.
+
+For air-gapped clusters, mirror all three images to your local registry from a machine with internet access (e.g., jumphost):
 
 ```bash
 # Login to Red Hat registry
@@ -48,6 +54,10 @@ podman pull registry.redhat.io/rhelai1/mistral-small-3-1-24b-instruct-2503-quant
 podman push registry.redhat.io/rhelai1/mistral-small-3-1-24b-instruct-2503-quantized-w4a16:1.5 \
   YOUR_LOCAL_REGISTRY/rhelai1/mistral-small-3-1-24b-instruct-2503-quantized-w4a16:1.5
 
+podman pull ghcr.io/oras-project/oras:v1.2.0
+podman push ghcr.io/oras-project/oras:v1.2.0 \
+  YOUR_LOCAL_REGISTRY/oras-project/oras:v1.2.0
+
 # Method 2: Using skopeo (direct registry-to-registry copy, no local storage needed)
 skopeo copy \
   docker://registry.redhat.io/rhaii/vllm-cuda-rhel9:3.4.0 \
@@ -56,6 +66,10 @@ skopeo copy \
 skopeo copy \
   docker://registry.redhat.io/rhelai1/mistral-small-3-1-24b-instruct-2503-quantized-w4a16:1.5 \
   docker://YOUR_LOCAL_REGISTRY/rhelai1/mistral-small-3-1-24b-instruct-2503-quantized-w4a16:1.5
+
+skopeo copy \
+  docker://ghcr.io/oras-project/oras:v1.2.0 \
+  docker://YOUR_LOCAL_REGISTRY/oras-project/oras:v1.2.0
 ```
 
 #### Alt 2: HuggingFace
@@ -91,6 +105,7 @@ vllm:
 model:
   source: oci    # this is the default
   ociImage: YOUR_LOCAL_REGISTRY/rhelai1/mistral-small-3-1-24b-instruct-2503-quantized-w4a16:1.5
+  orasImage: YOUR_LOCAL_REGISTRY/oras-project/oras:v1.2.0
 ```
 
 **Alt 2 (HuggingFace)** -- Set the model source and token:
