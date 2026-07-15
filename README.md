@@ -9,20 +9,68 @@ A Helm chart for deploying [Red Hat AI Inference (RHAII)](https://docs.redhat.co
 - **GPU node scheduling**: Configurable `nodeSelector` and `tolerations` for dedicated GPU nodes
 - **OpenAI-compatible API**: Exposes `/v1/chat/completions`, `/v1/completions`, and other standard endpoints
 
-## Quick Start (Existing Kubernetes Cluster)
+## Deployment Guide
 
 ### Prerequisites
 
 - Kubernetes cluster with NVIDIA GPU nodes (driver + device plugin installed)
 - `kubectl` and `helm` v3 installed
 - Access to `registry.redhat.io` (Red Hat account required) or a local mirror
+- No Kubernetes cluster yet? See **[AWS EKS Deployment Guide](examples/aws-eks-guide.md)**
 
-### Step 1: Clone and configure
+### Step 1: Clone the repo
 
 ```bash
 git clone https://github.com/Sheryl-shiyi/rhaii-k8s.git
 cd rhaii-k8s
 ```
+
+### Step 2: Prepare images (choose one mode)
+
+#### Alt 1: OCI (default, recommended for production/air-gap)
+
+The model is pulled as an OCI artifact from a container registry at pod startup. Two images are needed: the **vLLM runtime** and the **model**.
+
+If your cluster can reach `registry.redhat.io` directly, no preparation is needed. Skip to Step 3.
+
+For air-gapped clusters, mirror both images to your local registry from a machine with internet access (e.g., jumphost):
+
+```bash
+# Login to Red Hat registry
+podman login registry.redhat.io
+
+# Method 1 (Recommended): Using podman
+podman pull registry.redhat.io/rhaii/vllm-cuda-rhel9:3.4.0
+podman push registry.redhat.io/rhaii/vllm-cuda-rhel9:3.4.0 \
+  YOUR_LOCAL_REGISTRY/rhaii/vllm-cuda-rhel9:3.4.0
+
+podman pull registry.redhat.io/rhelai1/mistral-small-3-1-24b-instruct-2503-quantized-w4a16:1.5
+podman push registry.redhat.io/rhelai1/mistral-small-3-1-24b-instruct-2503-quantized-w4a16:1.5 \
+  YOUR_LOCAL_REGISTRY/rhelai1/mistral-small-3-1-24b-instruct-2503-quantized-w4a16:1.5
+
+# Method 2: Using skopeo (direct registry-to-registry copy, no local storage needed)
+skopeo copy \
+  docker://registry.redhat.io/rhaii/vllm-cuda-rhel9:3.4.0 \
+  docker://YOUR_LOCAL_REGISTRY/rhaii/vllm-cuda-rhel9:3.4.0
+
+skopeo copy \
+  docker://registry.redhat.io/rhelai1/mistral-small-3-1-24b-instruct-2503-quantized-w4a16:1.5 \
+  docker://YOUR_LOCAL_REGISTRY/rhelai1/mistral-small-3-1-24b-instruct-2503-quantized-w4a16:1.5
+```
+
+#### Alt 2: HuggingFace
+
+The model is downloaded directly from HuggingFace Hub at pod startup. No image mirroring needed, but the cluster must have internet access and a HuggingFace token.
+
+Prepare your HuggingFace access token from https://huggingface.co/settings/tokens.
+
+#### Alt 3: Preloaded
+
+The model files are already on a PersistentVolume. Use this when you have pre-populated the storage through other means (e.g., `kubectl cp`, NFS mount, or a separate download job). No image mirroring needed for the model.
+
+You still need the vLLM runtime image accessible from your cluster (mirror it if air-gapped).
+
+### Step 3: Configure values.yaml
 
 Edit `values.yaml` and update the `YOUR_*` placeholders:
 
@@ -33,7 +81,38 @@ Edit `values.yaml` and update the `YOUR_*` placeholders:
 | `YOUR_NODE_LABEL` | GPU node label for `nodeSelector` | `dedicated: rhai` |
 | `YOUR_NODE_TAINT` | GPU node taint for `tolerations` | `dedicated=rhai:NoSchedule` |
 
-### Step 2: Install
+Then apply the settings for your chosen mode:
+
+**Alt 1 (OCI)** -- If using a local registry mirror, update the image references:
+
+```yaml
+vllm:
+  image: YOUR_LOCAL_REGISTRY/rhaii/vllm-cuda-rhel9
+model:
+  source: oci    # this is the default
+  ociImage: YOUR_LOCAL_REGISTRY/rhelai1/mistral-small-3-1-24b-instruct-2503-quantized-w4a16:1.5
+```
+
+**Alt 2 (HuggingFace)** -- Set the model source and token:
+
+```yaml
+model:
+  source: huggingface
+  huggingfaceId: RedHatAI/Mistral-Small-3.1-24B-Instruct-2503-quantized.w4a16
+huggingface:
+  token: hf_YOUR_TOKEN
+```
+
+**Alt 3 (Preloaded)** -- Point to your existing PVC:
+
+```yaml
+model:
+  source: preloaded
+storage:
+  existingClaim: YOUR_EXISTING_PVC_NAME
+```
+
+### Step 4: Install
 
 ```bash
 # Create namespace
@@ -41,20 +120,24 @@ kubectl create namespace rhai
 
 # Option A: Use an existing image pull secret in your cluster
 helm install rhaii . -n rhai \
-  --set storage.storageClassName=YOUR_STORAGE_CLASS \
   --set registrySecret.existingSecret=YOUR_PULL_SECRET
 
 # Option B: Provide registry credentials directly
 helm install rhaii . -n rhai \
-  --set storage.storageClassName=YOUR_STORAGE_CLASS \
   --set registrySecret.dockerconfigjson=$(cat ~/.config/containers/auth.json | base64)
 ```
 
-### Step 3: Verify
+### Step 5: Verify
 
 ```bash
 # Watch pod startup (model download + loading takes several minutes)
 kubectl get pods -n rhai -w
+
+# Check init container logs (model download progress, OCI mode only)
+kubectl logs -n rhai -l app.kubernetes.io/instance=rhaii -c fetch-model
+
+# Check vLLM logs (model loading to GPU)
+kubectl logs -n rhai -l app.kubernetes.io/instance=rhaii -c vllm -f
 
 # Once pod shows 1/1 Running, test the API
 kubectl port-forward -n rhai svc/rhaii-rhaii-vllm 8000:80
@@ -66,81 +149,6 @@ curl http://localhost:8000/v1/chat/completions \
     "messages": [{"role": "user", "content": "Hello!"}],
     "max_tokens": 100
   }'
-```
-
-## Deploying on AWS EKS from Scratch
-
-If you don't have a Kubernetes cluster yet, see the full step-by-step guide:
-
-**[AWS EKS Deployment Guide](examples/aws-eks-guide.md)** -- Covers EKS cluster creation, EBS CSI driver setup, GPU node configuration, and RHAII deployment.
-
-## Model Source Modes
-
-### Alt 1: OCI (default)
-
-Pulls the model as an OCI artifact from a container registry using an ORAS init container. This is the recommended mode for production and air-gapped environments.
-
-```yaml
-# values.yaml
-model:
-  source: oci
-  ociImage: registry.redhat.io/rhelai1/mistral-small-3-1-24b-instruct-2503-quantized-w4a16:1.5
-```
-
-For air-gapped clusters with a local registry, mirror the images from a machine with internet access:
-
-```bash
-# On a machine with internet access (e.g., jumphost)
-
-# Method 1 (Recommended): Using podman
-podman pull registry.redhat.io/rhaii/vllm-cuda-rhel9:3.4.0
-podman push registry.redhat.io/rhaii/vllm-cuda-rhel9:3.4.0 \
-  local-registry.example.com/rhaii/vllm-cuda-rhel9:3.4.0
-
-podman pull registry.redhat.io/rhelai1/mistral-small-3-1-24b-instruct-2503-quantized-w4a16:1.5
-podman push registry.redhat.io/rhelai1/mistral-small-3-1-24b-instruct-2503-quantized-w4a16:1.5 \
-  local-registry.example.com/rhelai1/mistral-small-3-1-24b-instruct-2503-quantized-w4a16:1.5
-
-# Method 2: Using skopeo (direct registry-to-registry copy, no local storage needed)
-skopeo copy \
-  docker://registry.redhat.io/rhaii/vllm-cuda-rhel9:3.4.0 \
-  docker://local-registry.example.com/rhaii/vllm-cuda-rhel9:3.4.0
-
-skopeo copy \
-  docker://registry.redhat.io/rhelai1/mistral-small-3-1-24b-instruct-2503-quantized-w4a16:1.5 \
-  docker://local-registry.example.com/rhelai1/mistral-small-3-1-24b-instruct-2503-quantized-w4a16:1.5
-```
-
-Then update `values.yaml` to point to your local registry:
-
-```yaml
-vllm:
-  image: local-registry.example.com/rhaii/vllm-cuda-rhel9
-model:
-  ociImage: local-registry.example.com/rhelai1/mistral-small-3-1-24b-instruct-2503-quantized-w4a16:1.5
-```
-
-### Alt 2: HuggingFace
-
-Downloads the model directly from HuggingFace Hub at pod startup. Requires internet access from the cluster and a HuggingFace token.
-
-```bash
-helm install rhaii . -n rhai \
-  --set model.source=huggingface \
-  --set huggingface.token=hf_YOUR_TOKEN \
-  --set storage.storageClassName=YOUR_STORAGE_CLASS \
-  --set registrySecret.existingSecret=YOUR_PULL_SECRET
-```
-
-### Alt 3: Preloaded
-
-Assumes model files are already present on the PVC. Use this when you have pre-populated the storage through other means (e.g., `kubectl cp`, NFS mount, or a separate download job).
-
-```bash
-helm install rhaii . -n rhai \
-  --set model.source=preloaded \
-  --set storage.existingClaim=my-model-pvc \
-  --set registrySecret.existingSecret=YOUR_PULL_SECRET
 ```
 
 ## Configuration Reference
