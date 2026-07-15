@@ -1,0 +1,32 @@
+============================================================
+  RHAII vLLM Model Serving - {{ .Values.model.servedName }}
+============================================================
+
+Model source: {{ .Values.model.source }}
+{{- if eq .Values.model.source "oci" }}
+OCI image:    {{ .Values.model.ociImage }}
+{{- else if eq .Values.model.source "huggingface" }}
+HF model:     {{ .Values.model.huggingfaceId }}
+{{- else }}
+Preloaded from PVC
+{{- end }}
+vLLM image:   {{ .Values.vllm.image }}:{{ .Values.vllm.tag }}
+
+The model is being loaded. This may take several minutes depending on model size.
+
+Monitor pod status:
+  kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }} -w
+
+View logs:
+  kubectl logs -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }} -f
+
+Test the API (port-forward):
+  kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "rhaii.fullname" . }} 8000:{{ .Values.service.port }}
+
+  curl http://localhost:8000/v1/chat/completions \
+    -H "Content-Type: application/json" \
+    -d '{
+      "model": "{{ .Values.model.servedName }}",
+      "messages": [{"role": "user", "content": "Hello!"}],
+      "max_tokens": 100
+    }'

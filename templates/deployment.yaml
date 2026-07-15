@@ -1,0 +1,138 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "rhaii.fullname" . }}
+  labels:
+    {{- include "rhaii.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "rhaii.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "rhaii.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- if or .Values.registrySecret.dockerconfigjson .Values.registrySecret.existingSecret }}
+      imagePullSecrets:
+        - name: {{ include "rhaii.registrySecretName" . }}
+      {{- end }}
+      volumes:
+        - name: model-volume
+          persistentVolumeClaim:
+            claimName: {{ include "rhaii.pvcName" . }}
+        - name: shm
+          emptyDir:
+            medium: Memory
+            sizeLimit: "2Gi"
+        {{- if eq .Values.model.source "oci" }}
+        - name: oci-auth
+          secret:
+            secretName: {{ include "rhaii.registrySecretName" . }}
+            items:
+              - key: .dockerconfigjson
+                path: config.json
+        {{- end }}
+
+      {{- if eq .Values.model.source "oci" }}
+      initContainers:
+        - name: fetch-model
+          image: {{ .Values.model.orasImage }}
+          env:
+            - name: DOCKER_CONFIG
+              value: /auth
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+              if [ ! -f /model/config.json ]; then
+                echo "Pulling model from {{ .Values.model.ociImage }}..."
+                oras pull {{ .Values.model.ociImage }} --output /model
+              else
+                echo "Model already present (config.json found), skipping pull"
+              fi
+          volumeMounts:
+            - name: model-volume
+              mountPath: /model
+            - name: oci-auth
+              mountPath: /auth
+              readOnly: true
+      {{- end }}
+
+      containers:
+        - name: vllm
+          image: "{{ .Values.vllm.image }}:{{ .Values.vllm.tag }}"
+          imagePullPolicy: IfNotPresent
+          command: ["python", "-m", "vllm.entrypoints.openai.api_server"]
+          args:
+            - "--port={{ .Values.service.targetPort }}"
+            {{- if eq .Values.model.source "huggingface" }}
+            - "--model={{ .Values.model.huggingfaceId }}"
+            - "--download-dir={{ .Values.model.mountPath }}"
+            {{- else }}
+            - "--model={{ .Values.model.mountPath }}"
+            {{- end }}
+            - "--served-model-name={{ .Values.model.servedName }}"
+            - "--tensor-parallel-size={{ .Values.vllm.args.tensorParallelSize }}"
+            - "--max-model-len={{ .Values.vllm.args.maxModelLen }}"
+            - "--gpu-memory-utilization={{ .Values.vllm.args.gpuMemoryUtilization }}"
+            - "--tokenizer-mode={{ .Values.vllm.args.tokenizerMode }}"
+            {{- if .Values.vllm.args.enforceEager }}
+            - "--enforce-eager"
+            {{- end }}
+            {{- range .Values.vllm.extraArgs }}
+            - {{ . | quote }}
+            {{- end }}
+          {{- if eq .Values.model.source "huggingface" }}
+          env:
+            - name: HF_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "rhaii.fullname" . }}-hf-token
+                  key: HF_TOKEN
+            - name: HF_HOME
+              value: {{ .Values.model.mountPath }}
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.targetPort }}
+              protocol: TCP
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: model-volume
+              mountPath: {{ .Values.model.mountPath }}
+            - name: shm
+              mountPath: /dev/shm
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 60
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 30
+            timeoutSeconds: 5
+
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      restartPolicy: Always

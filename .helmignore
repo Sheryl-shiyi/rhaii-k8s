@@ -1,0 +1,10 @@
+# Patterns to ignore when building packages
+.git
+.gitignore
+.helmignore
+*.swp
+*.bak
+*.tmp
+
+# Examples and test infrastructure (not part of the Helm chart)
+examples/

@@ -1,0 +1,80 @@
+# -- Model configuration
+model:
+  # -- Download source: oci | huggingface | preloaded
+  source: oci
+
+  # -- [oci] OCI model image (used when source=oci)
+  ociImage: registry.redhat.io/rhelai1/mistral-small-3-1-24b-instruct-2503-quantized-w4a16:1.5
+  # -- [oci] ORAS image for pulling OCI artifacts
+  orasImage: ghcr.io/oras-project/oras:v1.2.0
+
+  # -- [huggingface] HuggingFace model ID (used when source=huggingface)
+  huggingfaceId: RedHatAI/Mistral-Small-3.1-24B-Instruct-2503-quantized.w4a16
+
+  # -- Model name exposed via the API (used in --served-model-name)
+  servedName: mistral-small-3.1-24b-instruct
+
+  # -- Mount path for model files inside the container
+  mountPath: /model
+
+# -- HuggingFace token (required when model.source=huggingface)
+huggingface:
+  token: ""
+
+# -- vLLM server configuration
+vllm:
+  image: registry.redhat.io/rhaii/vllm-cuda-rhel9
+  tag: "3.4.0"
+  args:
+    tensorParallelSize: 1
+    maxModelLen: 4096
+    gpuMemoryUtilization: "0.90"
+    tokenizerMode: auto
+    enforceEager: true
+  # -- Additional vLLM args (list of strings, e.g. ["--enable-chunked-prefill"])
+  extraArgs: []
+
+# -- Container resource requests and limits
+resources:
+  requests:
+    cpu: "2"
+    memory: 6Gi
+    nvidia.com/gpu: "1"
+  limits:
+    cpu: "10"
+    memory: 16Gi
+    nvidia.com/gpu: "1"
+
+# -- Persistent storage for model cache
+storage:
+  size: 50Gi
+  # -- YOUR_STORAGE_CLASS: Set to your cluster's StorageClass (e.g. "gp2" on EKS, "managed-premium" on AKS)
+  storageClassName: YOUR_STORAGE_CLASS
+  # -- Set to an existing PVC name to skip creating a new one (useful for preloaded mode)
+  existingClaim: ""
+
+# -- Image pull secret for container registries (Red Hat registry, or your local mirror)
+registrySecret:
+  # -- Create a secret from dockerconfigjson (set to base64-encoded content)
+  # To generate: cat ~/.config/containers/auth.json | base64
+  dockerconfigjson: ""
+  # -- Or reference an existing secret name in your namespace
+  # YOUR_PULL_SECRET: Set to your existing image pull secret name (e.g. "my-registry-pull-secret")
+  existingSecret: ""
+
+# -- GPU node scheduling
+# YOUR_NODE_LABEL: Adjust nodeSelector to match your GPU node labels
+nodeSelector:
+  dedicated: rhai
+
+# YOUR_NODE_TAINT: Adjust tolerations to match your GPU node taints
+tolerations:
+  - key: dedicated
+    value: rhai
+    effect: NoSchedule
+
+# -- Service configuration
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8000
