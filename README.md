@@ -210,35 +210,6 @@ helm install rhaii . -n rhai \
   --set networkPolicy.allowFrom[0].namespaceSelector.matchLabels.kubernetes\\.io/metadata\\.name=YOUR_ALLOWED_NAMESPACE
 ```
 
-## Configuration Reference
-
-| Parameter | Default | Description |
-|---|---|---|
-| `model.source` | `oci` | Model download mode: `oci`, `huggingface`, or `preloaded` |
-| `model.ociImage` | `registry.redhat.io/rhelai1/mistral-small-3-1-24b-instruct-2503-quantized-w4a16:1.5` | OCI model image |
-| `model.huggingfaceId` | `RedHatAI/Mistral-Small-3.1-24B-Instruct-2503-quantized.w4a16` | HuggingFace model ID |
-| `model.servedName` | `mistral-small-3.1-24b-instruct` | Model name exposed via the API |
-| `huggingface.token` | `""` | HuggingFace access token |
-| `vllm.image` | `registry.redhat.io/rhaii/vllm-cuda-rhel9` | RHAII vLLM container image |
-| `vllm.tag` | `3.4.0` | Image tag |
-| `vllm.args.tensorParallelSize` | `1` | Number of GPUs for tensor parallelism |
-| `vllm.args.maxModelLen` | `4096` | Maximum sequence length (affects GPU memory usage) |
-| `vllm.args.gpuMemoryUtilization` | `0.90` | Fraction of GPU memory to use |
-| `vllm.args.enforceEager` | `true` | Disable CUDA graphs to save GPU memory |
-| `vllm.apiKey` | `""` | API key for authentication on /v1/* endpoints (leave empty to disable) |
-| `vllm.extraArgs` | `[]` | Additional vLLM CLI arguments |
-| `resources.limits.nvidia.com/gpu` | `1` | Number of GPUs requested |
-| `resources.limits.memory` | `16Gi` | Container memory limit |
-| `storage.size` | `50Gi` | PVC size for model cache |
-| `storage.storageClassName` | `YOUR_STORAGE_CLASS` | Kubernetes StorageClass |
-| `storage.existingClaim` | `""` | Use an existing PVC instead of creating one |
-| `registrySecret.dockerconfigjson` | `""` | Base64-encoded Docker config for registry auth |
-| `registrySecret.existingSecret` | `""` | Name of an existing image pull secret |
-| `nodeSelector` | `{dedicated: rhai}` | Node selector for GPU node scheduling |
-| `tolerations` | `[{key: dedicated, value: rhai, effect: NoSchedule}]` | Tolerations for GPU node taints |
-| `networkPolicy.enabled` | `false` | Enable NetworkPolicy to restrict ingress traffic |
-| `networkPolicy.allowFrom` | `[{namespaceSelector: ...}]` | Allowed sources for ingress traffic |
-
 ## Tested Environment
 
 ### Hardware
@@ -261,22 +232,20 @@ helm install rhaii . -n rhai \
 | NVIDIA Device Plugin | Auto-installed by eksctl |
 | EBS CSI Driver | EKS addon |
 
-### Test Results
+### Test: Text Generation
 
 Model loading time (from PVC, after initial download): ~2.5 minutes
-
-**API key authentication test:**
 
 ```bash
 kubectl port-forward -n rhai svc/rhaii-rhaii-vllm 8000:80
 
-# Without API key → rejected
+# Without API key -> rejected
 curl -s http://localhost:8000/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{"model":"mistral-small-3.1-24b-instruct","messages":[{"role":"user","content":"Hello"}]}'
-# → {"error":"Unauthorized"}
+# -> {"error":"Unauthorized"}
 
-# With correct API key → success
+# With correct API key -> success
 curl http://localhost:8000/v1/chat/completions \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_API_KEY" \
@@ -287,16 +256,13 @@ curl http://localhost:8000/v1/chat/completions \
   }'
 ```
 
-Successful response:
+Response:
 
 ```json
 {
-  "id": "chatcmpl-993540dc941046b1",
-  "object": "chat.completion",
   "model": "mistral-small-3.1-24b-instruct",
   "choices": [
     {
-      "index": 0,
       "message": {
         "role": "assistant",
         "content": "Hello! How can I assist you today?"
@@ -304,32 +270,22 @@ Successful response:
       "finish_reason": "stop"
     }
   ],
-  "usage": {
-    "prompt_tokens": 178,
-    "total_tokens": 188,
-    "completion_tokens": 10
-  }
+  "usage": { "prompt_tokens": 178, "completion_tokens": 10, "total_tokens": 188 }
 }
 ```
 
-## Test: SQL Generation
+### Test: SQL Generation
 
-A test script is provided to verify the model's Text-to-SQL capabilities. It sends natural language questions against a sample schema and prints the generated SQL.
+A test script is provided to verify the model's Text-to-SQL capabilities: [examples/test-text-to-sql.sh](examples/test-text-to-sql.sh)
+
+It sends natural language questions against a sample schema (employees, departments, projects) and prints the generated SQL.
 
 ```bash
-# Start port-forward (if testing locally)
 kubectl port-forward -n rhai svc/rhaii-rhaii-vllm 8000:80 &
-
-# Run the test script
 ./examples/test-text-to-sql.sh http://localhost:8000 YOUR_API_KEY
 ```
 
-Sample schema used:
-- `employees` (id, name, department, salary, hire_date)
-- `departments` (id, name, manager_id, budget)
-- `projects` (id, name, department_id, start_date, end_date, status)
-
-### Example output
+Example output:
 
 ```
 RHAII Text-to-SQL Test Suite
@@ -386,6 +342,42 @@ GROUP BY p.name, d.name;
 ============================================
 All tests completed.
 ```
+
+> **Note:** These tests demonstrate the feasibility of deploying RHAII for model serving in the tested
+> environment. Output quality is determined by the model itself, not the serving infrastructure. To
+> improve output quality, you can swap in a different model by updating `model.ociImage` (or
+> `model.huggingfaceId`) and `model.servedName` in `values.yaml`. Fine-tuned or domain-specific
+> models (e.g., models trained specifically for Text-to-SQL tasks) will produce better results for
+> specialized use cases.
+
+## Configuration Reference
+
+| Parameter | Default | Description |
+|---|---|---|
+| `model.source` | `oci` | Model download mode: `oci`, `huggingface`, or `preloaded` |
+| `model.ociImage` | `registry.redhat.io/rhelai1/mistral-small-3-1-24b-instruct-2503-quantized-w4a16:1.5` | OCI model image |
+| `model.huggingfaceId` | `RedHatAI/Mistral-Small-3.1-24B-Instruct-2503-quantized.w4a16` | HuggingFace model ID |
+| `model.servedName` | `mistral-small-3.1-24b-instruct` | Model name exposed via the API |
+| `huggingface.token` | `""` | HuggingFace access token |
+| `vllm.image` | `registry.redhat.io/rhaii/vllm-cuda-rhel9` | RHAII vLLM container image |
+| `vllm.tag` | `3.4.0` | Image tag |
+| `vllm.args.tensorParallelSize` | `1` | Number of GPUs for tensor parallelism |
+| `vllm.args.maxModelLen` | `4096` | Maximum sequence length (affects GPU memory usage) |
+| `vllm.args.gpuMemoryUtilization` | `0.90` | Fraction of GPU memory to use |
+| `vllm.args.enforceEager` | `true` | Disable CUDA graphs to save GPU memory |
+| `vllm.apiKey` | `""` | API key for authentication on /v1/* endpoints (leave empty to disable) |
+| `vllm.extraArgs` | `[]` | Additional vLLM CLI arguments |
+| `resources.limits.nvidia.com/gpu` | `1` | Number of GPUs requested |
+| `resources.limits.memory` | `16Gi` | Container memory limit |
+| `storage.size` | `50Gi` | PVC size for model cache |
+| `storage.storageClassName` | `YOUR_STORAGE_CLASS` | Kubernetes StorageClass |
+| `storage.existingClaim` | `""` | Use an existing PVC instead of creating one |
+| `registrySecret.dockerconfigjson` | `""` | Base64-encoded Docker config for registry auth |
+| `registrySecret.existingSecret` | `""` | Name of an existing image pull secret |
+| `nodeSelector` | `{dedicated: rhai}` | Node selector for GPU node scheduling |
+| `tolerations` | `[{key: dedicated, value: rhai, effect: NoSchedule}]` | Tolerations for GPU node taints |
+| `networkPolicy.enabled` | `false` | Enable NetworkPolicy to restrict ingress traffic |
+| `networkPolicy.allowFrom` | `[{namespaceSelector: ...}]` | Allowed sources for ingress traffic |
 
 ## Troubleshooting
 
