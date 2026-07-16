@@ -31,6 +31,9 @@ vllm:
     gpuMemoryUtilization: "0.90"
     tokenizerMode: auto
     enforceEager: true
+  # -- API key for authentication on /v1/* endpoints (leave empty to disable)
+  # YOUR_API_KEY: Set a secret key to protect the inference API
+  apiKey: ""
   # -- Additional vLLM args (list of strings, e.g. ["--enable-chunked-prefill"])
   extraArgs: []
 
@@ -78,3 +81,12 @@ service:
   type: ClusterIP
   port: 80
   targetPort: 8000
+
+# -- Network policy to restrict access to the inference endpoint
+networkPolicy:
+  enabled: false
+  # -- Allow traffic only from pods/namespaces with these labels
+  allowFrom:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: YOUR_ALLOWED_NAMESPACE

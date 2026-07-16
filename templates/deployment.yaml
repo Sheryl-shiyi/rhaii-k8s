@@ -83,11 +83,15 @@ spec:
             {{- if .Values.vllm.args.enforceEager }}
             - "--enforce-eager"
             {{- end }}
+            {{- if .Values.vllm.apiKey }}
+            - "--api-key=$(VLLM_API_KEY)"
+            {{- end }}
             {{- range .Values.vllm.extraArgs }}
             - {{ . | quote }}
             {{- end }}
-          {{- if eq .Values.model.source "huggingface" }}
+          {{- if or (eq .Values.model.source "huggingface") .Values.vllm.apiKey }}
           env:
+            {{- if eq .Values.model.source "huggingface" }}
             - name: HF_TOKEN
               valueFrom:
                 secretKeyRef:
@@ -95,6 +99,14 @@ spec:
                   key: HF_TOKEN
             - name: HF_HOME
               value: {{ .Values.model.mountPath }}
+            {{- end }}
+            {{- if .Values.vllm.apiKey }}
+            - name: VLLM_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "rhaii.fullname" . }}-api-key
+                  key: api-key
+            {{- end }}
           {{- end }}
           ports:
             - name: http

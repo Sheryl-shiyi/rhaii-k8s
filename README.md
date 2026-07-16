@@ -135,11 +135,13 @@ kubectl create namespace rhai
 
 # Option A: Use an existing image pull secret in your cluster
 helm install rhaii . -n rhai \
-  --set registrySecret.existingSecret=YOUR_PULL_SECRET
+  --set registrySecret.existingSecret=YOUR_PULL_SECRET \
+  --set vllm.apiKey=YOUR_API_KEY
 
 # Option B: Provide registry credentials directly
 helm install rhaii . -n rhai \
-  --set registrySecret.dockerconfigjson=$(cat ~/.config/containers/auth.json | base64)
+  --set registrySecret.dockerconfigjson=$(cat ~/.config/containers/auth.json | base64) \
+  --set vllm.apiKey=YOUR_API_KEY
 ```
 
 ### Step 5: Verify
@@ -159,11 +161,49 @@ kubectl port-forward -n rhai svc/rhaii-rhaii-vllm 8000:80
 
 curl http://localhost:8000/v1/chat/completions \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
   -d '{
     "model": "mistral-small-3.1-24b-instruct",
     "messages": [{"role": "user", "content": "Hello!"}],
     "max_tokens": 100
   }'
+```
+
+## Accessing the Inference API
+
+### Cluster-internal access (default)
+
+The service is exposed as `ClusterIP` by default. Other pods in the cluster can access it via:
+
+```
+http://rhaii-rhaii-vllm.rhai.svc.cluster.local/v1/chat/completions
+```
+
+All `/v1/*` endpoints require an API key when `vllm.apiKey` is set:
+
+```bash
+curl http://rhaii-rhaii-vllm.rhai.svc.cluster.local/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -d '{"model": "mistral-small-3.1-24b-instruct", "messages": [{"role": "user", "content": "Hello!"}]}'
+```
+
+### External access (optional, not included in this chart)
+
+For external access, configure an Ingress Controller (e.g., NGINX Ingress) with a NodePort backend. This is out of scope for this POC. A typical setup would be:
+
+1. Install an Ingress Controller on your cluster
+2. Change the service type: `--set service.type=NodePort`
+3. Create an Ingress resource with TLS termination pointing to the service
+
+### Network policy (optional)
+
+To restrict access to authorized namespaces only, enable the NetworkPolicy:
+
+```bash
+helm install rhaii . -n rhai \
+  --set networkPolicy.enabled=true \
+  --set networkPolicy.allowFrom[0].namespaceSelector.matchLabels.kubernetes\\.io/metadata\\.name=YOUR_ALLOWED_NAMESPACE
 ```
 
 ## Configuration Reference
@@ -181,6 +221,7 @@ curl http://localhost:8000/v1/chat/completions \
 | `vllm.args.maxModelLen` | `4096` | Maximum sequence length (affects GPU memory usage) |
 | `vllm.args.gpuMemoryUtilization` | `0.90` | Fraction of GPU memory to use |
 | `vllm.args.enforceEager` | `true` | Disable CUDA graphs to save GPU memory |
+| `vllm.apiKey` | `""` | API key for authentication on /v1/* endpoints (leave empty to disable) |
 | `vllm.extraArgs` | `[]` | Additional vLLM CLI arguments |
 | `resources.limits.nvidia.com/gpu` | `1` | Number of GPUs requested |
 | `resources.limits.memory` | `16Gi` | Container memory limit |
@@ -191,6 +232,8 @@ curl http://localhost:8000/v1/chat/completions \
 | `registrySecret.existingSecret` | `""` | Name of an existing image pull secret |
 | `nodeSelector` | `{dedicated: rhai}` | Node selector for GPU node scheduling |
 | `tolerations` | `[{key: dedicated, value: rhai, effect: NoSchedule}]` | Tolerations for GPU node taints |
+| `networkPolicy.enabled` | `false` | Enable NetworkPolicy to restrict ingress traffic |
+| `networkPolicy.allowFrom` | `[{namespaceSelector: ...}]` | Allowed sources for ingress traffic |
 
 ## Tested Environment
 
@@ -218,13 +261,21 @@ curl http://localhost:8000/v1/chat/completions \
 
 Model loading time (from PVC, after initial download): ~2.5 minutes
 
-Inference test:
+**API key authentication test:**
 
 ```bash
 kubectl port-forward -n rhai svc/rhaii-rhaii-vllm 8000:80
 
+# Without API key → rejected
+curl -s http://localhost:8000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{"model":"mistral-small-3.1-24b-instruct","messages":[{"role":"user","content":"Hello"}]}'
+# → {"error":"Unauthorized"}
+
+# With correct API key → success
 curl http://localhost:8000/v1/chat/completions \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
   -d '{
     "model": "mistral-small-3.1-24b-instruct",
     "messages": [{"role": "user", "content": "Hello! What model are you?"}],
@@ -236,7 +287,7 @@ Successful response:
 
 ```json
 {
-  "id": "chatcmpl-a318dae55361b09b",
+  "id": "chatcmpl-993540dc941046b1",
   "object": "chat.completion",
   "model": "mistral-small-3.1-24b-instruct",
   "choices": [
@@ -244,15 +295,15 @@ Successful response:
       "index": 0,
       "message": {
         "role": "assistant",
-        "content": "Hello! I am Mistral Small 3, a Large Language Model created by Mistral AI. I am designed to understand and generate human language, and I can help answer questions, provide information, and assist with a variety of tasks."
+        "content": "Hello! How can I assist you today?"
       },
       "finish_reason": "stop"
     }
   ],
   "usage": {
-    "prompt_tokens": 184,
-    "total_tokens": 246,
-    "completion_tokens": 62
+    "prompt_tokens": 178,
+    "total_tokens": 188,
+    "completion_tokens": 10
   }
 }
 ```
