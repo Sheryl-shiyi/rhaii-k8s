@@ -312,6 +312,81 @@ Successful response:
 }
 ```
 
+## Test: SQL Generation
+
+A test script is provided to verify the model's Text-to-SQL capabilities. It sends natural language questions against a sample schema and prints the generated SQL.
+
+```bash
+# Start port-forward (if testing locally)
+kubectl port-forward -n rhai svc/rhaii-rhaii-vllm 8000:80 &
+
+# Run the test script
+./examples/test-text-to-sql.sh http://localhost:8000 YOUR_API_KEY
+```
+
+Sample schema used:
+- `employees` (id, name, department, salary, hire_date)
+- `departments` (id, name, manager_id, budget)
+- `projects` (id, name, department_id, start_date, end_date, status)
+
+### Example output
+
+```
+RHAII Text-to-SQL Test Suite
+Endpoint: http://localhost:8000
+API Key:  (set)
+
+============================================
+TEST: Basic aggregation with JOIN
+Question: Find the top 3 departments with the highest average salary, show department name,
+          average salary, and employee count.
+--------------------------------------------
+Generated SQL:
+SELECT
+    d.name AS department_name,
+    AVG(e.salary) AS average_salary,
+    COUNT(e.id) AS employee_count
+FROM employees e
+JOIN departments d ON e.department = d.name
+GROUP BY d.name
+ORDER BY average_salary DESC
+LIMIT 3;
+
+============================================
+TEST: HAVING clause with calculated field
+Question: List all departments where the total employee salary exceeds the department budget,
+          with the overspend amount, sorted by overspend descending.
+--------------------------------------------
+Generated SQL:
+SELECT
+    d.name AS department_name,
+    SUM(e.salary) - d.budget AS overspend_amount
+FROM departments d
+JOIN employees e ON d.name = e.department
+GROUP BY d.name, d.budget
+HAVING SUM(e.salary) > d.budget
+ORDER BY overspend_amount DESC;
+
+============================================
+TEST: Multi-table JOIN with filter
+Question: Show all active projects along with their department name and the number of employees
+          in that department.
+--------------------------------------------
+Generated SQL:
+SELECT
+    p.name AS project_name,
+    d.name AS department_name,
+    COUNT(e.id) AS number_of_employees
+FROM projects p
+JOIN departments d ON p.department_id = d.id
+JOIN employees e ON d.id = e.department
+WHERE p.status = 'active'
+GROUP BY p.name, d.name;
+
+============================================
+All tests completed.
+```
+
 ## Troubleshooting
 
 See **[Troubleshooting Guide](examples/troubleshooting.md)** for common issues and solutions, including:
