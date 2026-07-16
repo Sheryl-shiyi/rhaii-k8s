@@ -129,6 +129,10 @@ storage:
 
 ### Step 4: Install
 
+> **Note:** `vllm.apiKey` is optional (default: disabled). Set it to enable API key authentication
+> on all `/v1/*` endpoints. When set, requests must include `Authorization: Bearer YOUR_API_KEY`.
+> The key is stored as a Kubernetes Secret, not in any file in this repo.
+
 ```bash
 # Create namespace
 kubectl create namespace rhai
