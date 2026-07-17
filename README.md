@@ -239,15 +239,13 @@ helm install rhaii . -n rhai \
 ### NVIDIA Driver Requirements
 
 > RHAII 3.4.0 is built with CUDA 13.0. The container images are compatible with earlier CUDA 12.9 drivers.
-> If your host driver version is older than the CUDA toolkit version shipped in the AI Inference container,
-> you can use NVIDIA Forward Compatibility to avoid driver upgrades.
 >
 > -- [Red Hat AI Supported Product and Hardware Configurations](https://docs.redhat.com/en/documentation/red_hat_ai/3/html-single/supported_product_and_hardware_configurations/index)
 
-| CUDA Compatibility | Minimum NVIDIA Driver (Linux) |
-|---|---|
-| CUDA 13.0 (native) | >= 580.65.06 |
-| CUDA 12.9 (compatible) | >= 575.51.03 |
+| CUDA Compatibility | Minimum NVIDIA Driver (Linux) | Source |
+|---|---|---|
+| CUDA 13.0 (native) | >= 580.65.06 | [CUDA 13.0 Release Notes](https://docs.nvidia.com/cuda/archive/13.0.0/cuda-toolkit-release-notes/index.html) |
+| CUDA 12.9 (compatible) | >= 575.51.03 | [CUDA 12.9 Release Notes](https://docs.nvidia.com/cuda/archive/12.9.0/cuda-toolkit-release-notes/index.html) |
 
 The GPU Operator minimum version required by RHAII is **24.3** (see [RHAII software prerequisites](https://docs.redhat.com/en/documentation/red_hat_ai/3/html-single/supported_product_and_hardware_configurations/index)).
 
