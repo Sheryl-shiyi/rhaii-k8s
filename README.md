@@ -222,15 +222,34 @@ helm install rhaii . -n rhai \
 | Region | us-east-2 (Ohio) |
 | GPU Node Label | `dedicated=rhai` |
 | GPU Node Taint | `dedicated=rhai:NoSchedule` |
+| NVIDIA Driver | 580.159.03 |
+| CUDA Version | 13.0 |
 
 ### Software
 
 | Component | Version |
 |---|---|
 | RHAII vLLM | 3.4.0 (vLLM v0.18.0+rhaiv.7) |
+| CUDA Toolkit (in container) | 13.0 (V13.0.88) |
+| PyTorch (in container) | 2.10.0 |
 | Model | Mistral-Small-3.1-24B-Instruct-2503-quantized.w4a16 (~14GB) |
 | NVIDIA Device Plugin | Auto-installed by eksctl |
 | EBS CSI Driver | EKS addon |
+
+### NVIDIA Driver Requirements
+
+> RHAII 3.4.0 is built with CUDA 13.0. The container images are compatible with earlier CUDA 12.9 drivers.
+> If your host driver version is older than the CUDA toolkit version shipped in the AI Inference container,
+> you can use NVIDIA Forward Compatibility to avoid driver upgrades.
+>
+> -- [Red Hat AI Supported Product and Hardware Configurations](https://docs.redhat.com/en/documentation/red_hat_ai/3/html-single/supported_product_and_hardware_configurations/index)
+
+| CUDA Compatibility | Minimum NVIDIA Driver (Linux) |
+|---|---|
+| CUDA 13.0 (native) | >= 580.65.06 |
+| CUDA 12.9 (compatible) | >= 575.51.03 |
+
+The GPU Operator minimum version required by RHAII is **24.3** (see [RHAII software prerequisites](https://docs.redhat.com/en/documentation/red_hat_ai/3/html-single/supported_product_and_hardware_configurations/index)).
 
 ### Test: Text Generation
 
