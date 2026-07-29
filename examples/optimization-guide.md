@@ -53,22 +53,30 @@ helm upgrade rhaii . -n rhai --set vllm.args.maxModelLen=8192
 How to estimate the right value for your GPU:
 
 ```
-GPU memory budget:
+Step 1: GPU memory budget
   Total GPU VRAM:           24 GB (L4)
   - Model weights (W4A16):  ~14 GB
-  - Runtime overhead:       ~2 GB
-  = Available for KV cache: ~8 GB
+  - Runtime overhead:       ~2-4 GB (activations, CUDA context, etc.)
+  = Available for KV cache: ~6-8 GB
 
-KV cache per token (Mistral 24B, approximate):
-  ~1 MB per token
+Step 2: KV cache per token
+  Formula: 2 × layers × kv_heads × head_dim × bytes_per_element
+  Mistral-Small-3.1-24B: 2 × 40 × 8 × 128 × 2 (BF16) = 163,840 bytes ≈ 0.16 MB
 
-Estimated max context:
-  8 GB / 1 MB = ~8192 tokens
-
-So for a single L4: maxModelLen=4096 is safe, 8192 is possible but tight.
+Step 3: Theoretical max context
+  8 GB / 0.16 MB ≈ 50,000 tokens (theoretical)
+  6 GB / 0.16 MB ≈ 37,500 tokens (conservative)
 ```
 
-Start with 4096 and increase gradually. If the Pod crashes with OOM, reduce the value.
+The theoretical limit is high, but runtime overhead varies. We default to `maxModelLen=4096` as a
+safe starting point with `enforceEager=true`. You can increase this gradually (e.g., 8192, 16384)
+and observe whether the Pod starts successfully.
+
+> **Tip:** When vLLM starts, it logs the actual available KV cache blocks. Check the vLLM logs
+> (`kubectl logs -n rhai -l app.kubernetes.io/instance=rhaii -c vllm`) for lines like
+> `"GPU KV cache size"` to see how much context your setup actually supports.
+
+Reference: [KV Cache Memory Calculation for LLMs](https://lyceum.technology/magazine/kv-cache-memory-calculation-llm/)
 
 #### `gpuMemoryUtilization` (default: 0.90)
 
