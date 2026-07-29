@@ -367,6 +367,10 @@ All tests completed.
 > models (e.g., models trained specifically for Text-to-SQL tasks) will produce better results for
 > specialized use cases.
 
+## Optimization
+
+See **[Optimization Guide](examples/optimization-guide.md)** for tuning vLLM server parameters (GPU memory, context length, CUDA graphs) and request parameters (temperature, system prompt, few-shot examples) to improve performance and output quality.
+
 ## Configuration Reference
 
 | Parameter | Default | Description |
