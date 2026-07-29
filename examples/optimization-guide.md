@@ -107,36 +107,6 @@ Controls which tokenizer library to use. `auto` lets vLLM detect the correct tok
 
 Generally, do not change this unless you encounter tokenizer-related errors.
 
-### Additional parameters via extraArgs
-
-For parameters not exposed in `values.yaml`, use `extraArgs` to pass any [vLLM engine argument](https://docs.vllm.ai/en/stable/configuration/engine_args.html) directly:
-
-```bash
-# Set max concurrent requests to 64
-helm upgrade rhaii . -n rhai \
-  --set vllm.extraArgs[0]=--max-num-seqs=64
-
-# Set batch size to 8192 tokens per step
-helm upgrade rhaii . -n rhai \
-  --set vllm.extraArgs[0]=--max-num-batched-tokens=8192
-
-# Combine multiple extra args
-helm upgrade rhaii . -n rhai \
-  --set vllm.extraArgs[0]=--max-num-seqs=64 \
-  --set vllm.extraArgs[1]=--max-num-batched-tokens=8192
-```
-
-Commonly useful extra args:
-
-| Argument | Effect |
-|---|---|
-| `--max-num-seqs N` | Limits concurrent requests. Lower values reduce latency; higher values increase throughput. Default: 256. |
-| `--max-num-batched-tokens N` | Controls batch size per step. Increase for throughput, decrease for latency. Default: 8192. |
-| `--no-enable-prefix-caching` | Disables prefix caching (enabled by default in vLLM V1). Only use if you need to save memory. |
-
-> **Note:** In RHAII 3.4.0 (vLLM v0.18.0, V1 engine), prefix caching and chunked prefill are
-> **enabled by default**. You do not need to explicitly enable them via `extraArgs`.
-
 ### Tips for server parameter tuning
 
 1. **Change one parameter at a time** and measure the impact before changing another.
@@ -235,9 +205,6 @@ Key improvements:
 
 ## Reference
 
-RHAII uses vLLM as its inference engine. The server parameters (`--tensor-parallel-size`, `--max-model-len`, etc.) are vLLM engine arguments. RHAII does not add its own argument layer; all vLLM engine arguments are supported directly.
-
 - [Practical strategies for vLLM performance tuning (Red Hat Developer)](https://developers.redhat.com/articles/2026/03/03/practical-strategies-vllm-performance-tuning)
-- [vLLM Engine Arguments - Full List](https://docs.vllm.ai/en/stable/configuration/engine_args.html)
-- [vLLM Optimization and Tuning](https://docs.vllm.ai/en/stable/configuration/optimization/)
-- [vLLM Automatic Prefix Caching](https://docs.vllm.ai/en/stable/features/automatic_prefix_caching/)
+- [vLLM Engine Arguments - Full List (v0.18.0)](https://docs.vllm.ai/en/v0.18.0/configuration/engine_args.html)
+- [vLLM Optimization and Tuning](https://docs.vllm.ai/en/v0.18.0/configuration/optimization/)
