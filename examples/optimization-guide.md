@@ -43,29 +43,41 @@ With a single GPU (our POC setup), this must stay at 1.
 
 #### `maxModelLen` (default: 4096)
 
-Maximum context length in tokens (input + output combined). Larger values allow longer conversations but consume more GPU memory for KV cache.
+Maximum context length in tokens (input + output combined). This limits how long a single request's context (input + output) can be.
+
+Increasing `maxModelLen` does not consume more GPU memory by itself. vLLM allocates a fixed KV cache pool based on available GPU memory, and `maxModelLen` only controls how much of that pool a single request can use. A higher value allows longer conversations but reduces the maximum number of concurrent requests.
+
+**How to find the right value:**
+
+1. Start with a value (e.g., 4096 or 8192)
+2. Check the vLLM startup logs for the actual KV cache allocation
+3. Use the "Maximum concurrency" line to understand the trade-off
 
 ```bash
-# Example: increase to 8192
 helm upgrade rhaii . -n rhai --set vllm.args.maxModelLen=8192
+
+# After Pod restarts (~2-3 min), check the logs:
+kubectl logs -n rhai -l app.kubernetes.io/instance=rhaii -c vllm | grep -iE "KV cache|concurrency|Model loading|Available KV"
 ```
 
-How to find the right value: start with a conservative value and increase gradually. vLLM validates `maxModelLen` against actual available GPU memory at startup. If the value is too high, the Pod will fail to start with an OOM error. If it starts successfully, the value is safe to use.
+**Experiment example (single NVIDIA L4 24GB, Mistral-Small-3.1-24B W4A16):**
 
-```bash
-# Start conservative
-helm upgrade rhaii . -n rhai --set vllm.args.maxModelLen=4096    # safe default
+We tested two `maxModelLen` values on our POC environment. The key logs from vLLM:
 
-# Try increasing
-helm upgrade rhaii . -n rhai --set vllm.args.maxModelLen=8192    # if this starts, it works
-helm upgrade rhaii . -n rhai --set vllm.args.maxModelLen=16384   # keep going until OOM
+```
+Model loading took 14.05 GiB memory
+Available KV cache memory: 5.18 GiB
+GPU KV cache size: 33,904 tokens
 ```
 
-Check the vLLM startup logs to see the actual KV cache allocation:
+vLLM first loads the model (14.05 GB), then measures the remaining GPU memory (5.18 GB), and allocates it entirely to the KV cache pool (33,904 tokens). This pool size stays the same regardless of `maxModelLen`:
 
-```bash
-kubectl logs -n rhai -l app.kubernetes.io/instance=rhaii -c vllm | grep -i "kv cache"
-```
+| maxModelLen | KV cache pool | Max concurrency | Status |
+|---|---|---|---|
+| 4096 | 33,904 tokens | ~8.3 concurrent requests | Started successfully |
+| 8192 | 33,904 tokens | ~4.1 concurrent requests | Started successfully |
+
+**Takeaway:** The default `maxModelLen=4096` is very conservative for this setup. Setting it to 8192 still allows ~4 concurrent requests, which is sufficient for most POC workloads. Choose the value based on your expected request length vs. concurrency needs.
 
 #### `gpuMemoryUtilization` (default: 0.90)
 
