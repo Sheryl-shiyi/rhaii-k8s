@@ -50,8 +50,7 @@ Increasing `maxModelLen` does not consume more GPU memory by itself. vLLM alloca
 **How to find the right value:**
 
 1. Start with a value (e.g., 4096 or 8192)
-2. Check the vLLM startup logs for the actual KV cache allocation
-3. Use the "Maximum concurrency" line to understand the trade-off
+2. Check the vLLM startup logs for the actual KV cache allocation and concurrency
 
 ```bash
 helm upgrade rhaii . -n rhai --set vllm.args.maxModelLen=8192
