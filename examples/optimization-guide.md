@@ -47,7 +47,7 @@ Maximum context length in tokens (input + output combined). This limits how long
 
 Increasing `maxModelLen` does not consume more GPU memory by itself. vLLM allocates a fixed KV cache pool based on available GPU memory, and `maxModelLen` only controls how much of that pool a single request can use. A higher value allows longer conversations but reduces the maximum number of concurrent requests.
 
-**How to find the right value:**
+**Tips to find the right value:**
 
 1. Start with a value (e.g., 4096 or 8192)
 2. Check the vLLM startup logs for the actual KV cache allocation and concurrency
