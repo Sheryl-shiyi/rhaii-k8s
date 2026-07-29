@@ -59,24 +59,24 @@ helm upgrade rhaii . -n rhai --set vllm.args.maxModelLen=8192
 kubectl logs -n rhai -l app.kubernetes.io/instance=rhaii -c vllm | grep -iE "KV cache|concurrency|Model loading|Available KV"
 ```
 
-**Experiment example (single NVIDIA L4 24GB, Mistral-Small-3.1-24B W4A16):**
-
-We tested two `maxModelLen` values on our POC environment. The key logs from vLLM:
-
-```
-Model loading took 14.05 GiB memory
-Available KV cache memory: 5.18 GiB
-GPU KV cache size: 33,904 tokens
-```
-
-vLLM first loads the model (14.05 GB), then measures the remaining GPU memory (5.18 GB), and allocates it entirely to the KV cache pool (33,904 tokens). This pool size stays the same regardless of `maxModelLen`:
-
-| maxModelLen | KV cache pool | Max concurrency | Status |
-|---|---|---|---|
-| 4096 | 33,904 tokens | ~8.3 concurrent requests | Started successfully |
-| 8192 | 33,904 tokens | ~4.1 concurrent requests | Started successfully |
-
-**Takeaway:** The default `maxModelLen=4096` is very conservative for this setup. Setting it to 8192 still allows ~4 concurrent requests, which is sufficient for most POC workloads. Choose the value based on your expected request length vs. concurrency needs.
+> **Experiment example** (single NVIDIA L4 24GB, Mistral-Small-3.1-24B W4A16)
+>
+> I tested two `maxModelLen` values on the POC environment. The key logs from vLLM:
+>
+> ```
+> Model loading took 14.05 GiB memory
+> Available KV cache memory: 5.18 GiB
+> GPU KV cache size: 33,904 tokens
+> ```
+>
+> vLLM first loads the model (14.05 GB), then measures the remaining GPU memory (5.18 GB), and allocates it entirely to the KV cache pool (33,904 tokens). This pool size stays the same regardless of `maxModelLen`:
+>
+> | maxModelLen | KV cache pool | Max concurrency | Status |
+> |---|---|---|---|
+> | 4096 | 33,904 tokens | ~8.3 concurrent requests | Started successfully |
+> | 8192 | 33,904 tokens | ~4.1 concurrent requests | Started successfully |
+>
+> **Takeaway:** The default `maxModelLen=4096` is very conservative for this setup. Setting it to 8192 still allows ~4 concurrent requests, which is sufficient for most POC workloads. Choose the value based on your expected request length vs. concurrency needs.
 
 #### `gpuMemoryUtilization` (default: 0.90)
 
