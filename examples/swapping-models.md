@@ -12,14 +12,7 @@ When swapping models, update these fields:
 | `model.huggingfaceId` | HuggingFace model ID (if using `source: huggingface`) | `RedHatAI/granite-3.1-8b-instruct` |
 | `model.servedName` | Model name exposed via the API | `granite-3.1-8b-instruct` |
 
-You may also need to adjust server parameters depending on the new model's size and requirements:
-
-| Field | Why it may need changing |
-|---|---|
-| `vllm.args.maxModelLen` | Different models support different context lengths |
-| `vllm.args.tensorParallelSize` | Larger models may require multiple GPUs |
-| `vllm.args.enforceEager` | Smaller models may have enough GPU headroom to disable this |
-| `resources.limits.nvidia.com/gpu` | Must match `tensorParallelSize` |
+You may also need to adjust server parameters (e.g., `maxModelLen`, `enforceEager`) depending on the new model's size and GPU memory requirements. See the [Optimization Guide](optimization-guide.md) for details.
 
 ## Step by step
 
@@ -80,6 +73,60 @@ curl http://localhost:8000/v1/chat/completions \
     "max_tokens": 100
   }'
 ```
+
+## Verified example: Granite-3.1-8B W8A8
+
+I deployed [Granite-3.1-8B W8A8](https://huggingface.co/RedHatAI/granite-3.1-8b-instruct-quantized.w8a8) on a single NVIDIA L4 (24GB) using [example-granite-values.yaml](example-granite-values.yaml) and ran the SQL test script:
+
+```bash
+./examples/test-text-to-sql.sh http://localhost:8000 YOUR_API_KEY granite-3.1-8b-instruct
+```
+
+```
+TEST: Basic aggregation with JOIN
+Question: Find the top 3 departments with the highest average salary, show department name,
+          average salary, and employee count.
+Generated SQL:
+SELECT d.name AS department_name, AVG(e.salary) AS average_salary, COUNT(e.id) AS employee_count
+FROM employees e
+JOIN departments d ON e.department = d.name
+GROUP BY d.name
+ORDER BY average_salary DESC
+LIMIT 3;
+
+TEST: HAVING clause with calculated field
+Question: List all departments where the total employee salary exceeds the department budget,
+          with the overspend amount, sorted by overspend descending.
+Generated SQL:
+SELECT d.name AS department, SUM(e.salary) AS total_salary, d.budget,
+       SUM(e.salary) - d.budget AS overspend
+FROM employees e
+JOIN departments d ON e.department = d.name
+GROUP BY d.name, d.budget
+HAVING SUM(e.salary) > d.budget
+ORDER BY overspend DESC;
+
+TEST: Multi-table JOIN with filter
+Question: Show all active projects along with their department name and the number of employees
+          in that department.
+Generated SQL:
+SELECT p.name AS project_name, d.name AS department_name, COUNT(e.id) AS num_employees
+FROM projects p
+JOIN departments d ON p.department_id = d.id
+JOIN employees e ON d.id = e.department
+WHERE p.status = 'active'
+GROUP BY p.id, d.id;
+```
+
+Comparison with the default Mistral-Small-3.1-24B model:
+
+| | Mistral-Small 24B W4A16 | Granite 8B W8A8 |
+|---|---|---|
+| Model loading | 14.05 GiB, 112s | 7.84 GiB, 51s |
+| Available KV cache | 5.18 GiB | 11.41 GiB |
+| KV cache pool | 33,904 tokens | 74,784 tokens |
+| Max concurrency (8192 tokens) | ~4.1x | ~9.1x |
+| CUDA graphs | Off (not enough memory) | On |
 
 ## Finding compatible models
 
