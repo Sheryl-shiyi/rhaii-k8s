@@ -32,9 +32,11 @@ helm uninstall rhaii -n rhai
 kubectl delete pvc -n rhai --all
 ```
 
-### 2. Update values.yaml
+### 2. Create or update a values file
 
-Example: switching from Mistral-Small-3.1-24B (W4A16) to Granite-3.1-8B (W8A8):
+Instead of editing the default `values.yaml`, you can create a separate values file for the new model. See [example-granite-values.yaml](example-granite-values.yaml) for a complete example.
+
+Example: switching from [Mistral-Small-3.1-24B W4A16](https://huggingface.co/RedHatAI/Mistral-Small-3.1-24B-Instruct-2503-quantized.w4a16) to [Granite-3.1-8B W8A8](https://huggingface.co/RedHatAI/granite-3.1-8b-instruct-quantized.w8a8):
 
 ```yaml
 model:
@@ -51,7 +53,9 @@ vllm:
 ### 3. Install
 
 ```bash
+# Using a separate values file (-f) with environment-specific overrides (--set)
 helm install rhaii . -n rhai \
+  -f examples/example-granite-values.yaml \
   --set registrySecret.existingSecret=YOUR_PULL_SECRET \
   --set vllm.apiKey=YOUR_API_KEY
 ```

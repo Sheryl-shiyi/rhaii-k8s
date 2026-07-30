@@ -1,0 +1,19 @@
+# Example values for deploying Granite-3.1-8B-Instruct (W8A8 quantized)
+# Model: https://huggingface.co/RedHatAI/granite-3.1-8b-instruct-quantized.w8a8
+# OCI:   registry.redhat.io/rhelai1/granite-3-1-8b-instruct-quantized-w8a8:1.5
+#
+# Granite 8B W8A8 weights are ~8 GB, leaving ~16 GB for KV cache on a 24 GB GPU.
+# This allows a larger maxModelLen and CUDA graphs (enforceEager: false).
+
+model:
+  source: oci
+  ociImage: registry.redhat.io/rhelai1/granite-3-1-8b-instruct-quantized-w8a8:1.5
+  servedName: granite-3.1-8b-instruct
+
+vllm:
+  args:
+    tensorParallelSize: 1
+    maxModelLen: 8192
+    gpuMemoryUtilization: "0.90"
+    tokenizerMode: auto
+    enforceEager: false
