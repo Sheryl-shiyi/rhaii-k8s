@@ -1,6 +1,6 @@
 # Optimization Guide
 
-This guide covers how to optimize the RHAII vLLM deployment for better performance and output quality.
+This guide provides an overview of tunable parameters and examples from our POC testing. It is not exhaustive. The optimal configuration depends on your specific hardware, model, and use case. For official vLLM optimization documentation, see the [Reference](#reference) section.
 
 ## Overview
 
