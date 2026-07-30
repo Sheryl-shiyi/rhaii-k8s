@@ -162,7 +162,7 @@ For Text-to-SQL and other structured output tasks, use `temperature: 0.0` for co
 
 ### System prompt optimization
 
-The system prompt has the **largest impact on output quality** among all request parameters. It tells the model how to behave and what format to use.
+The system prompt has the **largest impact on output quality** among all request-level configurations. It tells the model how to behave and what format to use.
 
 **Basic prompt (used in the test script):**
 
