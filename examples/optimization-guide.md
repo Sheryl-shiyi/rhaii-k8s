@@ -10,7 +10,7 @@ There are three categories of parameters you can tune:
 |---|---|---|---|
 | **Server parameters** | Throughput, latency, GPU memory usage | Yes (~2-3 min reload) | `values.yaml` or `helm upgrade --set` |
 | **Request parameters** | Output quality, creativity, length | No | API call (`curl` / application code) |
-| **Model-level** | Model size, accuracy, speed | Yes (full redeployment) | Swap model in `values.yaml` |
+| **Model-level** | Model size, accuracy, speed | Yes (full redeployment) | Swap model in `values.yaml` ([guide](swapping-models.md)) |
 
 ### How to modify server parameters
 
