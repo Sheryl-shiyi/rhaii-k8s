@@ -75,10 +75,8 @@ curl http://localhost:8000/v1/chat/completions \
 
 ## Finding compatible models
 
-Red Hat publishes quantized models on both registries:
-
-- **OCI images**: Search `registry.redhat.io/rhelai1/` for available models (use `podman search registry.redhat.io/rhelai1/`)
-- **HuggingFace**: Browse [RedHatAI on HuggingFace](https://huggingface.co/RedHatAI) for all available models
+- **Red Hat Validated Models**: [Choose a validated model for reliable serving](https://docs.redhat.com/en/documentation/red_hat_ai/3/html-single/validated_models/index) -- official model support matrix with compatibility, modelcar image paths, and performance data
+- **HuggingFace**: [RedHatAI on HuggingFace](https://huggingface.co/RedHatAI) -- all available Red Hat AI models with quantization variants and deployment examples
 
 ### GPU memory considerations
 
