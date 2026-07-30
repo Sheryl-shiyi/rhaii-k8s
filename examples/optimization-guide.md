@@ -80,7 +80,7 @@ kubectl logs -n rhai -l app.kubernetes.io/instance=rhaii -c vllm | grep -iE "KV 
 
 #### `gpuMemoryUtilization` (default: 0.90)
 
-Fraction of GPU memory vLLM is allowed to use (0.0 to 1.0). Higher values leave more room for KV cache but increase OOM risk.
+Fraction of GPU memory vLLM is allowed to use (0.0 to 1.0). Higher values allocate more memory for KV cache but increase OOM risk.
 
 ```bash
 # Example: increase to 0.95
@@ -107,7 +107,7 @@ helm upgrade rhaii . -n rhai --set vllm.args.enforceEager=false
 | `true` (current) | Slower | Saves ~1-2 GB |
 | `false` | Faster | Uses ~1-2 GB more |
 
-On a 24 GB L4 with a 14 GB model, memory is tight, so we default to `true`. If you have a larger GPU (e.g., A100 80 GB), set this to `false` for better performance.
+On a 24 GB L4 with a 14 GB model, memory is tight, so this defaults to `true`. If you have a larger GPU (e.g., A100 80 GB), set this to `false` for better performance.
 
 #### `tokenizerMode` (default: auto)
 
@@ -164,7 +164,7 @@ For Text-to-SQL and other structured output tasks, use `temperature: 0.0` for co
 
 The system prompt has the **largest impact on output quality** among all request parameters. It tells the model how to behave and what format to use.
 
-**Basic prompt (what our test script uses):**
+**Basic prompt (used in the test script):**
 
 ```
 You are a SQL expert. Given the following database schema and a natural language
