@@ -23,6 +23,10 @@ You may also need to adjust server parameters depending on the new model's size 
 
 ## Step by step
 
+### 0. Mirror the new model (air-gapped clusters only)
+
+If your cluster cannot reach `registry.redhat.io` directly, mirror the new model's OCI image to your local registry before proceeding. See the [Deployment Guide (Alt 1: OCI)](../README.md#step-2-prepare-images-choose-one-mode) for mirror instructions.
+
 ### 1. Delete the existing PVC (model cache)
 
 The PVC contains the previous model's files. It must be deleted so the new model can be downloaded:

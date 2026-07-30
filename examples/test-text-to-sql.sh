@@ -1,13 +1,15 @@
 #!/bin/bash
 # Test script for Text-to-SQL generation using the RHAII vLLM inference API.
-# Usage: ./test-text-to-sql.sh [API_ENDPOINT] [API_KEY]
+# Usage: ./test-text-to-sql.sh [API_ENDPOINT] [API_KEY] [MODEL_NAME]
 #   API_ENDPOINT  default: http://localhost:8000
 #   API_KEY       default: (none, no auth header sent)
+#   MODEL_NAME    default: mistral-small-3.1-24b-instruct
 #
 # Prerequisites: curl, python3 (or jq)
 
 API_ENDPOINT="${1:-http://localhost:8000}"
 API_KEY="$2"
+MODEL_NAME="${3:-mistral-small-3.1-24b-instruct}"
 
 AUTH_ARGS=()
 if [ -n "$API_KEY" ]; then
@@ -28,7 +30,7 @@ run_test() {
   PAYLOAD=$(python3 -c "
 import json
 print(json.dumps({
-    'model': 'mistral-small-3.1-24b-instruct',
+    'model': '$MODEL_NAME',
     'messages': [
         {'role': 'system', 'content': '$SYSTEM_PROMPT'},
         {'role': 'user', 'content': '$question'}
@@ -62,6 +64,7 @@ echo ""
 echo "RHAII Text-to-SQL Test Suite"
 echo "Endpoint: $API_ENDPOINT"
 echo "API Key:  ${API_KEY:+(set)}"
+echo "Model:    $MODEL_NAME"
 echo ""
 
 run_test "Basic aggregation with JOIN" \

@@ -299,7 +299,7 @@ It sends natural language questions against a sample schema (employees, departme
 
 ```bash
 kubectl port-forward -n rhai svc/rhaii-rhaii-vllm 8000:80 &
-./examples/test-text-to-sql.sh http://localhost:8000 YOUR_API_KEY
+./examples/test-text-to-sql.sh http://localhost:8000 YOUR_API_KEY YOUR_MODEL_NAME
 ```
 
 Example output:
