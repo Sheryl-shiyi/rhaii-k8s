@@ -126,7 +126,7 @@ Comparison with the default Mistral-Small-3.1-24B model:
 | Available KV cache | 5.18 GiB | 11.41 GiB |
 | KV cache pool | 33,904 tokens | 74,784 tokens |
 | Max concurrency (8192 tokens) | ~4.1x | ~9.1x |
-| CUDA graphs | Off (not enough memory) | On |
+| CUDA graphs | Off (set conservatively) | On |
 
 ## Finding compatible models
 
@@ -135,13 +135,15 @@ Comparison with the default Mistral-Small-3.1-24B model:
 
 ### GPU memory considerations
 
-When choosing a model, estimate whether it fits on your GPU:
+When choosing a model, use this rough estimate to check whether it fits on your GPU. The formula is: `parameters × bytes per parameter`. Actual size will be slightly higher because not all layers are quantized (e.g., embedding layers typically remain in FP16).
 
-| Quantization | Approximate weight size | Single L4 (24GB)? |
-|---|---|---|
-| W4A16 (4-bit weights) | ~0.5 GB per billion params | Up to ~24B models |
-| W8A8 (8-bit weights) | ~1 GB per billion params | Up to ~10-12B models |
-| FP8 (8-bit float) | ~1 GB per billion params | Up to ~10-12B models |
-| FP16/BF16 (no quantization) | ~2 GB per billion params | Up to ~5B models |
+| Quantization | Bytes per parameter | Rough estimate | Single L4 (24GB)? |
+|---|---|---|---|
+| W4A16 (4-bit weights) | 0.5 | 24B × 0.5 = ~12 GB | Up to ~24B models |
+| W8A8 (8-bit weights) | 1 | 8B × 1 = ~8 GB | Up to ~10-12B models |
+| FP8 (8-bit float) | 1 | 8B × 1 = ~8 GB | Up to ~10-12B models |
+| FP16/BF16 (no quantization) | 2 | 8B × 2 = ~16 GB | Up to ~5B models |
 
-For example, Mistral-Small-3.1-24B at W4A16 takes ~14 GB, leaving room for KV cache on a 24 GB L4. The same model at W8A8 would take ~24 GB, leaving no room for KV cache.
+For reference, our tested values (from vLLM logs):
+- Mistral-Small-3.1-24B W4A16: estimated ~12 GB, **actual 14.05 GB** (17% higher due to non-quantized layers)
+- Granite-3.1-8B W8A8: estimated ~8 GB, **actual 7.84 GB** (close to estimate)
